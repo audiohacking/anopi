@@ -1,8 +1,8 @@
-# anopi
+# ANOPI
 
-Open chord-builder instrument inspired by the NOPIA Mk1 harmony workflow: one live gesture, four MIDI parts, playable without a DAW.
+<img width="1082" height="708" alt="image" src="https://github.com/user-attachments/assets/78027ce8-4ba3-41d1-87a3-0aa57106cc06" />
 
-ANOPI is an independent reconstruction from public descriptions. It is not affiliated with Nopia.
+> Open chord-builder instrument inspired by the NOPIA Mk1 harmony workflow
 
 ## Play it
 
@@ -57,3 +57,7 @@ JUCE is licensed AGPLv3 unless you have a commercial JUCE license — this proje
 ## Releases
 
 Publishing a GitHub Release triggers [`.github/workflows/release.yml`](.github/workflows/release.yml): macOS AU+VST3+Standalone, Windows VST3, Linux VST3, then upload as release assets.
+
+## Disclaimer
+
+ANOPI is an independent development inspired by public descriptions. Not affiliated with any other vendors.
