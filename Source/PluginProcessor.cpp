@@ -51,9 +51,16 @@ AnopiAudioProcessor::AnopiAudioProcessor()
 {
 }
 
+AnopiAudioProcessor::~AnopiAudioProcessor()
+{
+    audioRecorder.stop();
+}
+
 bool AnopiAudioProcessor::isStandaloneWrapper() const
 {
-    return wrapperType == wrapperType_Standalone;
+    return wrapperType == wrapperType_Standalone
+        || juce::PluginHostType::getPluginLoadedAs() == wrapperType_Standalone
+        || juce::JUCEApplicationBase::isStandaloneApp();
 }
 
 int AnopiAudioProcessor::getTonalCenter() const
@@ -100,6 +107,7 @@ void AnopiAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 
 void AnopiAudioProcessor::releaseResources()
 {
+    audioRecorder.stop();
     cableKeys.reset();
     cableBass.reset();
     cableArp.reset();
@@ -453,16 +461,64 @@ void AnopiAudioProcessor::processBlock (juce::AudioBuffer<float>& audio, juce::M
     {
         audio.clear();
     }
+
+    audioRecorder.tap (audio);
 }
 
 void AnopiAudioProcessor::exportCaptureToFile (const juce::File& file)
 {
     auto midiFile = capture.toMidiFile (currentBpm);
-    if (file.existsAsFile())
-        file.deleteFile();
-    juce::FileOutputStream stream (file);
+    auto dest = file;
+    if (dest.getFileExtension().isEmpty())
+        dest = dest.withFileExtension ("mid");
+    dest.getParentDirectory().createDirectory();
+    if (dest.existsAsFile())
+        dest.deleteFile();
+    juce::FileOutputStream stream (dest);
     if (stream.openedOk())
         midiFile.writeTo (stream);
+}
+
+bool AnopiAudioProcessor::startAudioCapture (const juce::File& file)
+{
+    if (! isStandaloneWrapper())
+        return false;
+    const int chans = juce::jmax (1, getTotalNumOutputChannels());
+    return audioRecorder.start (file, currentSampleRate > 0.0 ? currentSampleRate : 44100.0, chans);
+}
+
+void AnopiAudioProcessor::stopAudioCapture()
+{
+    audioRecorder.stop();
+}
+
+juce::File AnopiAudioProcessor::getSettingsFolder() const
+{
+    auto dir = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory).getChildFile ("ANOPI");
+    dir.createDirectory();
+    return dir;
+}
+
+void AnopiAudioProcessor::saveSettingsToFile (const juce::File& file)
+{
+    auto dest = file;
+    if (dest.getFileExtension().isEmpty())
+        dest = dest.withFileExtension ("xml");
+    dest.getParentDirectory().createDirectory();
+    if (auto xml = apvts.copyState().createXml())
+        xml->writeTo (dest);
+}
+
+bool AnopiAudioProcessor::loadSettingsFromFile (const juce::File& file)
+{
+    if (! file.existsAsFile())
+        return false;
+    if (auto xml = juce::XmlDocument::parse (file))
+    {
+        apvts.replaceState (juce::ValueTree::fromXml (*xml));
+        return true;
+    }
+    return false;
 }
 
 void AnopiAudioProcessor::getStateInformation (juce::MemoryBlock& destData)

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Audio/AudioRecorder.h"
 #include "Audio/PreviewSynth.h"
 #include "Chord/ChordEngine.h"
 #include "Midi/ArpClock.h"
@@ -10,6 +11,7 @@
 
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <juce_events/juce_events.h>
 #include <array>
 #include <bitset>
 
@@ -17,7 +19,7 @@ class AnopiAudioProcessor : public juce::AudioProcessor
 {
 public:
     AnopiAudioProcessor();
-    ~AnopiAudioProcessor() override = default;
+    ~AnopiAudioProcessor() override;
 
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
@@ -54,6 +56,12 @@ public:
     bool pushLive (const anopi::LiveEvent& e) { return liveFifo.push (e); }
     void exportCaptureToFile (const juce::File& file);
     bool isStandaloneWrapper() const;
+    bool startAudioCapture (const juce::File& file);
+    void stopAudioCapture();
+    bool isAudioCapturing() const noexcept { return audioRecorder.isRecording(); }
+    void saveSettingsToFile (const juce::File& file);
+    bool loadSettingsFromFile (const juce::File& file);
+    juce::File getSettingsFolder() const;
 
     std::atomic<int> lastControl { -1 };
     std::atomic<bool> shiftHeld { false };
@@ -76,6 +84,7 @@ private:
     anopi::ModuleRouter router;
     anopi::ArpClock arp;
     anopi::PreviewSynth synth;
+    AudioRecorder audioRecorder;
 
     std::array<std::vector<int>, 13> degreeNotes {};
     std::bitset<13> heldDegrees;

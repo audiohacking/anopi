@@ -17,7 +17,7 @@ AnopiAudioProcessorEditor::AnopiAudioProcessorEditor (AnopiAudioProcessor& p)
     setOpaque (true);
     setSize (1080, 680);
     setResizable (true, true);
-    setResizeLimits (900, 580, 1600, 940);
+    setResizeLimits (960, 580, 1600, 940);
 
     addAndMakeVisible (monitor);
     addAndMakeVisible (keyboard);
@@ -38,15 +38,26 @@ AnopiAudioProcessorEditor::AnopiAudioProcessorEditor (AnopiAudioProcessor& p)
     bend.setValue (0.5, juce::dontSendNotification);
 
     for (auto* b : { &staticReal, &shift, &sustain, &keysOn, &bassOn, &arpOn, &padOn,
-                     &bassLink, &padLatch, &preview, &capture, &qwertyHelp })
+                     &bassLink, &padLatch, &preview, &qwertyHelp })
     {
         styleToggle (*b);
         addAndMakeVisible (*b);
     }
 
-    addAndMakeVisible (dumpBtn);
+    addAndMakeVisible (captureBtn);
+    addAndMakeVisible (recBtn);
+    addAndMakeVisible (saveBtn);
+    addAndMakeVisible (loadBtn);
     addAndMakeVisible (allOffBtn);
     addAndMakeVisible (learnBtn);
+
+    recBtn.setVisible (true);
+    recBtn.setEnabled (proc.isStandaloneWrapper());
+    recBtn.setTooltip (proc.isStandaloneWrapper() ? "Record preview audio to WAV" : "Audio REC is Standalone only");
+    staticReal.setTooltip ("Real scale layout");
+    lastMidiFolder = juce::File::getSpecialLocation (juce::File::userDocumentsDirectory);
+    lastWavFolder = lastMidiFolder;
+    lastSettingsFolder = proc.getSettingsFolder();
 
     voiceLabel.setJustificationType (juce::Justification::centred);
     bendLabel.setJustificationType (juce::Justification::centred);
@@ -77,21 +88,36 @@ AnopiAudioProcessorEditor::AnopiAudioProcessorEditor (AnopiAudioProcessor& p)
         }
     };
 
-    dumpBtn.onClick = [this]
+    captureBtn.onClick = [this]
     {
-        auto chooser = std::make_shared<juce::FileChooser> ("Dump ANOPI MIDI", juce::File {}, "*.mid");
-        chooser->launchAsync (juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles,
-                              [this, chooser] (const juce::FileChooser& fc)
-                              {
-                                  auto file = fc.getResult();
-                                  if (file != juce::File {})
-                                  {
-                                      if (file.getFileExtension().isEmpty())
-                                          file = file.withFileExtension ("mid");
-                                      proc.exportCaptureToFile (file);
-                                  }
-                              });
+        if (proc.capture.isRecording())
+        {
+            auto dest = pendingMidiFile;
+            setCaptureArmed (false);
+            if (dest != juce::File {})
+                proc.exportCaptureToFile (dest);
+        }
+        else
+        {
+            chooseAndStartMidiCapture();
+        }
     };
+
+    recBtn.onClick = [this]
+    {
+        if (proc.isAudioCapturing())
+        {
+            proc.stopAudioCapture();
+            setRecButtonRecording (false);
+        }
+        else
+        {
+            chooseAndStartAudioCapture();
+        }
+    };
+
+    saveBtn.onClick = [this] { chooseAndSaveSettings(); };
+    loadBtn.onClick = [this] { chooseAndLoadSettings(); };
 
     allOffBtn.onClick = [this]
     {
@@ -125,7 +151,6 @@ AnopiAudioProcessorEditor::AnopiAudioProcessorEditor (AnopiAudioProcessor& p)
     linkAt = std::make_unique<BAttach> (proc.apvts, "bassLink", bassLink);
     latchAt = std::make_unique<BAttach> (proc.apvts, "padLatch", padLatch);
     prevAt = std::make_unique<BAttach> (proc.apvts, "previewSynth", preview);
-    capAt = std::make_unique<BAttach> (proc.apvts, "capture", capture);
 
     auto bindPads = [this] (PadBank& bank, const char* paramId)
     {
@@ -155,6 +180,11 @@ AnopiAudioProcessorEditor::AnopiAudioProcessorEditor (AnopiAudioProcessor& p)
 
 AnopiAudioProcessorEditor::~AnopiAudioProcessorEditor()
 {
+    auto dest = pendingMidiFile;
+    setCaptureArmed (false);
+    if (dest != juce::File {})
+        proc.exportCaptureToFile (dest);
+    proc.stopAudioCapture();
     setLookAndFeel (nullptr);
 }
 
@@ -165,31 +195,42 @@ void AnopiAudioProcessorEditor::paint (juce::Graphics& g)
     g.drawRoundedRectangle (getLocalBounds().toFloat().reduced (6.0f), 18.0f, 2.0f);
 
     g.setColour (juce::Colour (0xff2a3328));
-    g.setFont (juce::FontOptions (20.0f).withStyle ("Bold"));
-    g.drawText ("ANOPI", 16, 12, 92, 28, juce::Justification::centredLeft);
-    g.setFont (juce::FontOptions (11.0f));
+    g.setFont (juce::FontOptions (18.0f).withStyle ("Bold"));
+    g.drawText ("ANOPI", 12, 8, 84, 22, juce::Justification::centredLeft);
+    g.setFont (juce::FontOptions (10.0f));
     g.setColour (juce::Colour (0xff5a6658));
-    g.drawText ("chord builder", 108, 16, 110, 20, juce::Justification::centredLeft);
+    g.drawText ("chord builder", 96, 10, 100, 18, juce::Justification::centredLeft);
 }
 
 void AnopiAudioProcessorEditor::resized()
 {
-    auto r = getLocalBounds().reduced (10);
-    auto top = r.removeFromTop (28);
-    top.removeFromLeft (214);
-    keysOn.setBounds (top.removeFromLeft (52).reduced (1, 1));
-    bassOn.setBounds (top.removeFromLeft (52).reduced (1, 1));
-    arpOn.setBounds (top.removeFromLeft (46).reduced (1, 1));
-    padOn.setBounds (top.removeFromLeft (46).reduced (1, 1));
-    top.removeFromLeft (4);
-    shift.setBounds (top.removeFromLeft (58).reduced (1, 1));
-    staticReal.setBounds (top.removeFromLeft (82).reduced (1, 1));
-    sustain.setBounds (top.removeFromLeft (68).reduced (1, 1));
-    top.removeFromLeft (4);
-    preview.setBounds (top.removeFromLeft (108).reduced (1, 1));
-    capture.setBounds (top.removeFromLeft (72).reduced (1, 1));
-    dumpBtn.setBounds (top.removeFromLeft (88).reduced (1, 1));
-    allOffBtn.setBounds (top.removeFromLeft (58).reduced (1, 1));
+    auto r = getLocalBounds().reduced (8);
+    auto top = r.removeFromTop (22);
+    top.removeFromLeft (148);
+
+    auto placeRow = [] (juce::Rectangle<int> row, std::initializer_list<juce::Component*> items,
+                        std::initializer_list<float> weights)
+    {
+        float sum = 0.0f;
+        for (auto w : weights)
+            sum += w;
+        auto wit = weights.begin();
+        for (auto* c : items)
+        {
+            const float w = *wit++;
+            const int px = juce::jmax (30, (int) std::lround ((float) row.getWidth() * (w / juce::jmax (0.001f, sum))));
+            c->setBounds (row.removeFromLeft (juce::jmin (px, row.getWidth())).reduced (1, 0));
+        }
+    };
+
+    auto file = top.removeFromRight (juce::jmax (236, top.getWidth() / 3));
+    placeRow (file, { &captureBtn, &recBtn, &saveBtn, &loadBtn, &allOffBtn },
+              { 1.3f, 0.85f, 0.9f, 0.9f, 1.0f });
+    top.removeFromRight (4);
+    preview.setBounds (top.removeFromRight (92).reduced (1, 0));
+    top.removeFromRight (4);
+    placeRow (top, { &keysOn, &bassOn, &arpOn, &padOn, &shift, &staticReal, &sustain },
+              { 1.0f, 1.0f, 0.85f, 0.85f, 1.05f, 0.9f, 1.15f });
 
     r.removeFromTop (6);
     auto harmony = r.removeFromTop (76);
@@ -249,6 +290,11 @@ void AnopiAudioProcessorEditor::timerCallback()
 
     if (proc.controlMap.learnTarget.load() < 0 && learnBtn.getButtonText() != "MIDI learn")
         learnBtn.setButtonText ("MIDI learn");
+
+    recBtn.setEnabled (proc.isStandaloneWrapper());
+    recBtn.setTooltip (proc.isStandaloneWrapper() ? "Record preview audio to WAV" : "Audio REC is Standalone only");
+    if (recBtn.isEnabled())
+        setRecButtonRecording (proc.isAudioCapturing());
 }
 
 void AnopiAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
@@ -268,6 +314,100 @@ void AnopiAudioProcessorEditor::setChoice (const char* paramId, int index)
     if (auto* p = proc.apvts.getParameter (paramId))
         p->setValueNotifyingHost (p->convertTo0to1 ((float) index));
     grabKeyboardFocus();
+}
+
+void AnopiAudioProcessorEditor::setCaptureArmed (bool on)
+{
+    if (auto* p = proc.apvts.getParameter ("capture"))
+        p->setValueNotifyingHost (on ? 1.0f : 0.0f);
+    captureBtn.setButtonText (on ? "STOP" : "Capture");
+    if (! on)
+        pendingMidiFile = juce::File();
+}
+
+void AnopiAudioProcessorEditor::setRecButtonRecording (bool on)
+{
+    recBtn.setButtonText (on ? "STOP" : "REC");
+}
+
+void AnopiAudioProcessorEditor::chooseAndStartMidiCapture()
+{
+    auto startAt = lastMidiFolder.getChildFile ("ANOPI.mid");
+    auto chooser = std::make_shared<juce::FileChooser> ("Save MIDI capture", startAt, "*.mid");
+    chooser->launchAsync (juce::FileBrowserComponent::saveMode
+                              | juce::FileBrowserComponent::canSelectFiles
+                              | juce::FileBrowserComponent::warnAboutOverwriting,
+                          [this, chooser] (const juce::FileChooser& fc)
+                          {
+                              auto file = fc.getResult();
+                              if (file == juce::File {})
+                                  return;
+                              if (file.getFileExtension().isEmpty())
+                                  file = file.withFileExtension ("mid");
+                              lastMidiFolder = file.getParentDirectory();
+                              pendingMidiFile = file;
+                              setCaptureArmed (true);
+                              grabKeyboardFocus();
+                          });
+}
+
+void AnopiAudioProcessorEditor::chooseAndStartAudioCapture()
+{
+    if (! proc.isStandaloneWrapper())
+        return;
+
+    auto startAt = lastWavFolder.getChildFile ("ANOPI.wav");
+    auto chooser = std::make_shared<juce::FileChooser> ("Record audio", startAt, "*.wav");
+    chooser->launchAsync (juce::FileBrowserComponent::saveMode
+                              | juce::FileBrowserComponent::canSelectFiles
+                              | juce::FileBrowserComponent::warnAboutOverwriting,
+                          [this, chooser] (const juce::FileChooser& fc)
+                          {
+                              auto file = fc.getResult();
+                              if (file == juce::File {})
+                                  return;
+                              if (file.getFileExtension().isEmpty())
+                                  file = file.withFileExtension ("wav");
+                              lastWavFolder = file.getParentDirectory();
+                              if (proc.startAudioCapture (file))
+                                  setRecButtonRecording (true);
+                              grabKeyboardFocus();
+                          });
+}
+
+void AnopiAudioProcessorEditor::chooseAndSaveSettings()
+{
+    auto startAt = lastSettingsFolder.getChildFile ("ANOPI.xml");
+    auto chooser = std::make_shared<juce::FileChooser> ("Save ANOPI settings", startAt, "*.xml");
+    chooser->launchAsync (juce::FileBrowserComponent::saveMode
+                              | juce::FileBrowserComponent::canSelectFiles
+                              | juce::FileBrowserComponent::warnAboutOverwriting,
+                          [this, chooser] (const juce::FileChooser& fc)
+                          {
+                              auto file = fc.getResult();
+                              if (file == juce::File {})
+                                  return;
+                              if (file.getFileExtension().isEmpty())
+                                  file = file.withFileExtension ("xml");
+                              lastSettingsFolder = file.getParentDirectory();
+                              proc.saveSettingsToFile (file);
+                              grabKeyboardFocus();
+                          });
+}
+
+void AnopiAudioProcessorEditor::chooseAndLoadSettings()
+{
+    auto chooser = std::make_shared<juce::FileChooser> ("Load ANOPI settings", lastSettingsFolder, "*.xml");
+    chooser->launchAsync (juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+                          [this, chooser] (const juce::FileChooser& fc)
+                          {
+                              auto file = fc.getResult();
+                              if (file == juce::File {})
+                                  return;
+                              lastSettingsFolder = file.getParentDirectory();
+                              proc.loadSettingsFromFile (file);
+                              grabKeyboardFocus();
+                          });
 }
 
 void AnopiAudioProcessorEditor::syncQwertyDegrees()

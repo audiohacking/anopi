@@ -15,6 +15,7 @@ public:
 
     void setRecording (bool on) noexcept
     {
+        const juce::SpinLock::ScopedLockType guard (spin);
         if (on && ! recording.load())
         {
             for (auto& t : tracks)
@@ -28,6 +29,7 @@ public:
 
     void tap (const juce::MidiBuffer& buffer, int numSamples, const std::array<int, 4>& channels)
     {
+        const juce::SpinLock::ScopedLockType guard (spin);
         if (! recording.load())
         {
             sampleCounter += numSamples;
@@ -57,6 +59,7 @@ public:
 
     juce::MidiFile toMidiFile (double bpm) const
     {
+        const juce::SpinLock::ScopedLockType guard (spin);
         juce::MidiFile file;
         file.setTicksPerQuarterNote (480);
         const double ticksPerSample = (bpm > 0.0 ? bpm : 120.0) / 60.0 * 480.0 / sampleRate;
@@ -85,6 +88,7 @@ public:
 
     bool hasEvents() const noexcept
     {
+        const juce::SpinLock::ScopedLockType guard (spin);
         for (auto& t : tracks)
             if (t.getNumEvents() > 0)
                 return true;
@@ -92,6 +96,7 @@ public:
     }
 
 private:
+    mutable juce::SpinLock spin;
     double sampleRate = 44100.0;
     int64_t sampleCounter = 0;
     std::atomic<bool> recording { false };

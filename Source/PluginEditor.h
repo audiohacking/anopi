@@ -30,22 +30,37 @@ public:
                            bool highlighted, bool down) override
     {
         juce::ignoreUnused (highlighted);
-        paintAnopiPad (g, button.getLocalBounds().toFloat().reduced (1.0f),
+        const float font = button.getHeight() <= 26 ? 9.5f
+                                                    : juce::jlimit (9.0f, 12.0f, (float) button.getHeight() * 0.40f);
+        paintAnopiPad (g, button.getLocalBounds().toFloat().reduced (0.5f),
                        button.getToggleState() || down,
                        button.getButtonText(),
-                       juce::jlimit (9.0f, 12.0f, (float) button.getHeight() * 0.40f));
+                       font);
     }
 
     void drawButtonBackground (juce::Graphics& g, juce::Button& button, const juce::Colour&,
                                bool highlighted, bool down) override
     {
         juce::ignoreUnused (highlighted);
-        auto r = button.getLocalBounds().toFloat().reduced (1.0f);
-        const bool on = down || button.getToggleState();
-        g.setColour (on ? juce::Colour (0xffeef4b4) : juce::Colour (0xffd2dcc8));
-        g.fillRoundedRectangle (r, 4.0f);
-        g.setColour (on ? juce::Colour (0xff2a3328) : juce::Colour (0xff7e8b74));
-        g.drawRoundedRectangle (r, 4.0f, on ? 1.7f : 1.0f);
+        auto r = button.getLocalBounds().toFloat().reduced (0.5f);
+        const bool stop = button.getButtonText() == "STOP";
+        const bool rec = button.getButtonText() == "REC";
+        const bool on = down || button.getToggleState() || stop;
+        g.setColour (stop ? juce::Colour (0xffe8b4b0)
+                          : rec ? juce::Colour (0xfff0d4c8)
+                                : (on ? juce::Colour (0xffeef4b4) : juce::Colour (0xffd2dcc8)));
+        g.fillRoundedRectangle (r, 3.0f);
+        g.setColour (stop || rec ? juce::Colour (0xff7a3030)
+                                 : (on ? juce::Colour (0xff2a3328) : juce::Colour (0xff7e8b74)));
+        g.drawRoundedRectangle (r, 3.0f, on ? 1.4f : 1.0f);
+    }
+
+    void drawButtonText (juce::Graphics& g, juce::TextButton& button, bool, bool) override
+    {
+        g.setFont (juce::FontOptions (9.5f).withStyle ("Bold"));
+        const bool rec = button.getButtonText() == "REC" || button.getButtonText() == "STOP";
+        g.setColour (rec ? juce::Colour (0xff7a3030) : juce::Colour (0xff243028));
+        g.drawText (button.getButtonText(), button.getLocalBounds(), juce::Justification::centred, false);
     }
 
     void drawLinearSlider (juce::Graphics& g, int x, int y, int width, int height,
@@ -94,6 +109,12 @@ private:
     void pushDegree (int degree, bool on);
     void setChoice (const char* paramId, int index);
     void syncQwertyDegrees();
+    void setCaptureArmed (bool on);
+    void setRecButtonRecording (bool on);
+    void chooseAndStartMidiCapture();
+    void chooseAndStartAudioCapture();
+    void chooseAndSaveSettings();
+    void chooseAndLoadSettings();
 
     AnopiAudioProcessor& proc;
     AnopiLookAndFeel look;
@@ -117,7 +138,7 @@ private:
     juce::Slider bend { juce::Slider::LinearVertical, juce::Slider::NoTextBox };
     juce::Slider gain { juce::Slider::LinearHorizontal, juce::Slider::NoTextBox };
 
-    juce::ToggleButton staticReal { "Real scale" };
+    juce::ToggleButton staticReal { "Real" };
     juce::ToggleButton shift { "Shift" };
     juce::ToggleButton sustain { "Sustain" };
     juce::ToggleButton keysOn { "Keys" };
@@ -127,10 +148,11 @@ private:
     juce::ToggleButton bassLink { "Bass link" };
     juce::ToggleButton padLatch { "Pad latch" };
     juce::ToggleButton preview { "Internal tones" };
-    juce::ToggleButton capture { "Capture" };
     juce::ToggleButton qwertyHelp { "Show map" };
 
-    juce::TextButton dumpBtn { "Dump MIDI" }, allOffBtn { "Panic" }, learnBtn { "MIDI learn" };
+    juce::TextButton captureBtn { "Capture" }, recBtn { "REC" };
+    juce::TextButton saveBtn { "Save" }, loadBtn { "Load" };
+    juce::TextButton allOffBtn { "Panic" }, learnBtn { "MIDI learn" };
 
     juce::Label voiceLabel { {}, "VOICING" };
     juce::Label bendLabel { {}, "BEND" };
@@ -140,13 +162,15 @@ private:
     using BAttach = juce::AudioProcessorValueTreeState::ButtonAttachment;
 
     std::unique_ptr<FAttach> voiceAt, gainAt;
-    std::unique_ptr<BAttach> layAt, shiftAt, susAt, kAt, bAt, aAt, pAt, linkAt, latchAt, prevAt, capAt;
+    std::unique_ptr<BAttach> layAt, shiftAt, susAt, kAt, bAt, aAt, pAt, linkAt, latchAt, prevAt;
 
     std::bitset<13> qwertyHeld;
     std::bitset<4> qwertyStrum;
     bool qwertyBassRoot = false, qwertyBassAlt = false;
     bool showMap = false;
     int lastBend = 8192;
+    juce::File pendingMidiFile;
+    juce::File lastMidiFolder, lastWavFolder, lastSettingsFolder;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AnopiAudioProcessorEditor)
 };

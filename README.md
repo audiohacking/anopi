@@ -1,12 +1,18 @@
 # ANOPI
 
-<img width="1082" height="708" alt="image" src="https://github.com/user-attachments/assets/78027ce8-4ba3-41d1-87a3-0aa57106cc06" />
+<img width="1082" height="708" alt="ANOPI chord builder" src="https://github.com/user-attachments/assets/78027ce8-4ba3-41d1-87a3-0aa57106cc06" />
 
 > Open chord-builder instrument inspired by the NOPIA Mk1 harmony workflow
 
-## Play it
+## Download
 
-Build the **Standalone** app (or load the AU/VST3) and click the panel so it has keyboard focus.
+Get the latest Standalone app and plugins from the **[latest GitHub Release](https://github.com/lmangani/anopi/releases/latest)**.
+
+Pick the build for your system: macOS (Standalone, AU, VST3, and an installer), Windows (Standalone and VST3), or Linux (Standalone and VST3).
+
+## Play
+
+Open the Standalone app (or load the AU/VST3 in a DAW) and click the panel so it has keyboard focus.
 
 - **A W S E D F T G Y H U J K** — Chord Builder (A is always degree I in Static mode)
 - **1–9 0 - =** — Tonal Selector (C through B)
@@ -16,9 +22,10 @@ Build the **Standalone** app (or load the AU/VST3) and click the panel so it has
 - **M** — major/minor &nbsp; **Tab** — Static / Real scale
 - **Space** — sustain &nbsp; **; '** — voicing &nbsp; **Z X C V** — strum chord tones
 - **B / N** — bass root / alternate &nbsp; **F1–F4** — Keys / Bass / Arp / Pad
-- MIDI: play octave (default C3–C4) is the Chord Builder; C5–B5 is the Tonal Selector; CC 16/17 extensions/voicing; CC 64 sustain
 
 **Internal tones** are on by default so Standalone is immediately musical (Keys / Bass / Arp / Pad). Turn them off when you want ANOPI to drive other instruments only.
+
+**Capture** asks where to save a `.mid` (Keys / Bass / Arp / Pad tracks), then the button becomes **STOP**. **REC** (Standalone only) does the same for a `.wav` of the preview tones. **Save** / **Load** stash the current panel so you can reuse a setup.
 
 ## Four parts in a DAW
 
@@ -35,33 +42,10 @@ ANOPI emits MIDI on four channels from one resolve:
 
 **Standalone virtual cables:** set Output Mode to *Virtual cables* to create ports `ANOPI Keys/Bass/Arp/Pad` (macOS; Windows needs a loopback port).
 
-**Dump:** enable Capture, play a take, then **Dump MIDI** for a Type 1 SMF with four tracks.
-
 Logic’s plugin MIDI-out is awkward — use Standalone cables or IAC.
 
-## Build
+## License
 
-Needs CMake 3.22+, a C++20 compiler, and git (JUCE 8.0.8 is fetched on first configure).
+ANOPI is licensed under the [GNU Affero General Public License v3.0](LICENSE), matching the JUCE framework it is built with.
 
-```bash
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release -j
-cmake --build build --target anopi_tests
-ctest --test-dir build --output-on-failure
-```
-
-Targets: `ANOPI_Standalone`, `ANOPI_VST3`, and on macOS `ANOPI_AU`. With `COPY_PLUGIN_AFTER_BUILD` the plugins also land in the OS plugin folders.
-
-JUCE is licensed AGPLv3 unless you have a commercial JUCE license — this project inherits that.
-
-## Releases
-
-Publishing a GitHub Release triggers [`.github/workflows/release.yml`](.github/workflows/release.yml). Each platform builds **Standalone plus plugins**, then uploads:
-
-- Combined zips: macOS AU+VST3+Standalone, Windows VST3+Standalone, Linux VST3+Standalone
-- Standalone-only zips: `ANOPI-macOS-Standalone.zip`, `ANOPI-Windows-Standalone.zip`, `ANOPI-Linux-Standalone.zip`
-- macOS installer `.pkg` (AU + VST3 + `/Applications/ANOPI.app`)
-
-## Disclaimer
-
-ANOPI is an independent development inspired by public descriptions. Not affiliated with any other vendors.
+ANOPI is an independent development inspired by public descriptions. It is not affiliated with any other vendors.

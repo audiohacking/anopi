@@ -75,6 +75,7 @@ target_compile_definitions(ANOPI
 target_link_libraries(ANOPI
     PRIVATE
         juce::juce_audio_utils
+        juce::juce_audio_formats
         juce::juce_audio_plugin_client
         juce::juce_audio_devices
     PUBLIC
