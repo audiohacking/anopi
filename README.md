@@ -56,7 +56,11 @@ JUCE is licensed AGPLv3 unless you have a commercial JUCE license — this proje
 
 ## Releases
 
-Publishing a GitHub Release triggers [`.github/workflows/release.yml`](.github/workflows/release.yml): macOS AU+VST3+Standalone, Windows VST3, Linux VST3, then upload as release assets.
+Publishing a GitHub Release triggers [`.github/workflows/release.yml`](.github/workflows/release.yml). Each platform builds **Standalone plus plugins**, then uploads:
+
+- Combined zips: macOS AU+VST3+Standalone, Windows VST3+Standalone, Linux VST3+Standalone
+- Standalone-only zips: `ANOPI-macOS-Standalone.zip`, `ANOPI-Windows-Standalone.zip`, `ANOPI-Linux-Standalone.zip`
+- macOS installer `.pkg` (AU + VST3 + `/Applications/ANOPI.app`)
 
 ## Disclaimer
 

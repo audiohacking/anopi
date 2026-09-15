@@ -20,18 +20,26 @@ jobs:
             ${{ runner.os }}-juce-8.0.8-
 
       - name: Configure CMake
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DANOPI_COPY_PLUGIN_AFTER_BUILD=OFF
 
-      - name: Build
-        run: cmake --build build -j8 --config Release
+      - name: Build plugins, standalone, and tests
+        run: cmake --build build -j8 --config Release --target ANOPI_Standalone ANOPI_VST3 ANOPI_AU anopi_tests
 
       - name: Test
         run: ctest --test-dir build --output-on-failure -C Release
+
+      - name: Verify artefacts
+        run: |
+          test -d build/ANOPI_artefacts/Release/AU/ANOPI.component
+          test -d build/ANOPI_artefacts/Release/VST3/ANOPI.vst3
+          test -d build/ANOPI_artefacts/Release/Standalone/ANOPI.app
 
       - name: Package (zip)
         run: |
           cd build/ANOPI_artefacts/Release
           zip -r ../../../ANOPI-macOS.zip AU/ VST3/ Standalone/
+          cd Standalone
+          zip -r ../../../../ANOPI-macOS-Standalone.zip ANOPI.app
 
       - name: Package (installer .pkg)
         run: |
@@ -43,6 +51,12 @@ jobs:
         with:
           name: ANOPI-macOS
           path: ANOPI-macOS.zip
+
+      - name: Upload standalone artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ANOPI-macOS-Standalone
+          path: ANOPI-macOS-Standalone.zip
 
       - name: Upload pkg artifact
         uses: actions/upload-artifact@v4
@@ -65,25 +79,39 @@ jobs:
             ${{ runner.os }}-juce-8.0.8-
 
       - name: Configure CMake
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DANOPI_COPY_PLUGIN_AFTER_BUILD=OFF
 
-      - name: Build
-        run: cmake --build build -j8 --config Release
+      - name: Build plugins, standalone, and tests
+        run: cmake --build build -j8 --config Release --target ANOPI_Standalone ANOPI_VST3 anopi_tests
 
       - name: Test
         run: ctest --test-dir build --output-on-failure -C Release
+
+      - name: Verify artefacts
+        shell: bash
+        run: |
+          test -d build/ANOPI_artefacts/Release/VST3/ANOPI.vst3
+          test -f build/ANOPI_artefacts/Release/Standalone/ANOPI.exe
 
       - name: Package (zip)
         shell: bash
         run: |
           cd build/ANOPI_artefacts/Release
           7z a -tzip ../../../ANOPI-Windows.zip VST3/ Standalone/
+          cd Standalone
+          7z a -tzip ../../../../ANOPI-Windows-Standalone.zip ANOPI.exe
 
       - name: Upload zip artifact
         uses: actions/upload-artifact@v4
         with:
           name: ANOPI-Windows
           path: ANOPI-Windows.zip
+
+      - name: Upload standalone artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ANOPI-Windows-Standalone
+          path: ANOPI-Windows-Standalone.zip
 
   build-linux:
     name: Build Linux
@@ -124,24 +152,37 @@ jobs:
             ${{ runner.os }}-juce-8.0.8-
 
       - name: Configure CMake
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DANOPI_COPY_PLUGIN_AFTER_BUILD=OFF
 
-      - name: Build
-        run: cmake --build build -j8 --config Release
+      - name: Build plugins, standalone, and tests
+        run: cmake --build build -j8 --config Release --target ANOPI_Standalone ANOPI_VST3 anopi_tests
 
       - name: Test
         run: ctest --test-dir build --output-on-failure -C Release
+
+      - name: Verify artefacts
+        run: |
+          test -d build/ANOPI_artefacts/Release/VST3/ANOPI.vst3
+          test -x build/ANOPI_artefacts/Release/Standalone/ANOPI
 
       - name: Package (zip)
         run: |
           cd build/ANOPI_artefacts/Release
           zip -r ../../../ANOPI-Linux.zip VST3/ Standalone/
+          cd Standalone
+          zip -r ../../../../ANOPI-Linux-Standalone.zip ANOPI
 
       - name: Upload zip artifact
         uses: actions/upload-artifact@v4
         with:
           name: ANOPI-Linux
           path: ANOPI-Linux.zip
+
+      - name: Upload standalone artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ANOPI-Linux-Standalone
+          path: ANOPI-Linux-Standalone.zip
 
   create-release:
     name: Create Release Assets
@@ -157,6 +198,12 @@ jobs:
           name: ANOPI-macOS
           path: ./artifacts
 
+      - name: Download macOS standalone
+        uses: actions/download-artifact@v4
+        with:
+          name: ANOPI-macOS-Standalone
+          path: ./artifacts
+
       - name: Download macOS installer
         uses: actions/download-artifact@v4
         with:
@@ -170,11 +217,25 @@ jobs:
           name: ANOPI-Windows
           path: ./artifacts
 
+      - name: Download Windows standalone
+        if: needs.build-windows.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: ANOPI-Windows-Standalone
+          path: ./artifacts
+
       - name: Download Linux zip
         if: needs.build-linux.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: ANOPI-Linux
+          path: ./artifacts
+
+      - name: Download Linux standalone
+        if: needs.build-linux.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: ANOPI-Linux-Standalone
           path: ./artifacts
 
       - name: Upload release assets
